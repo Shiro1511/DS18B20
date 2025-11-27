@@ -1,0 +1,48 @@
+# ========================================================================
+#   STM32 + CubeMX + CMake + VSCode Project .gitignore
+# ========================================================================
+
+# --- Build folders ---
+build/
+build*/
+cmake-build*/
+Debug/
+Release/
+
+# --- Object & output files ---
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.srec
+*.list
+
+# --- IDE configs ---
+.vscode/
+.settings/
+.idea/
+*.launch
+*.workspace
+*.depend
+*.db
+MDK-ARM/
+
+# --- STM32CubeMX files ---
+mx.scratch
+*.ioc-backup
+*.bak
+*.tmp
+*.log
+*.swp
+
+# --- CMake generated files ---
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+compile_commands.json
+
+# --- System / OS ---
+.DS_Store
+Thumbs.db
