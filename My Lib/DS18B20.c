@@ -1,14 +1,19 @@
 #include "DS18B20.h"
 
-extern TIM_HandleTypeDef htim1;
+static TIM_HandleTypeDef *htim_ds18b20;
+
+void DS18B20_SetTimerHandle(TIM_HandleTypeDef *htim)
+{
+    htim_ds18b20 = htim;
+}
 
 static void delayMicroSeconds(uint16_t us)
 {
-    __HAL_TIM_SET_COUNTER(&htim1, 0);
-    HAL_TIM_Base_Start(&htim1);
-    while (__HAL_TIM_GET_COUNTER(&htim1) < us)
+    __HAL_TIM_SET_COUNTER(htim_ds18b20, 0);
+    HAL_TIM_Base_Start(htim_ds18b20);
+    while (__HAL_TIM_GET_COUNTER(htim_ds18b20) < us)
         ;
-    HAL_TIM_Base_Stop(&htim1);
+    HAL_TIM_Base_Stop(htim_ds18b20);
 }
 
 static void delayMilliSeconds(uint16_t ms)
@@ -19,32 +24,53 @@ static void delayMilliSeconds(uint16_t ms)
     }
 }
 
-HAL_StatusTypeDef DS18B20_Reset(DS18B20_HandleTypeDef *ds18b20x)
+static void DS18B20_SetPinOut(DS18B20_HandleTypeDef *ds18b20x)
 {
-    HAL_StatusTypeDef status;
-
-    /* Set pin as output */
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Pin = ds18b20x->GPIO_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
+}
 
+static void DS18B20_SetPinIn(DS18B20_HandleTypeDef *ds18b20x)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = ds18b20x->GPIO_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
+}
+
+static void DS18B20_WritePin(DS18B20_HandleTypeDef *ds18b20x, uint8_t value)
+{
+    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, value);
+}
+
+static uint8_t DS18B20_ReadPin(DS18B20_HandleTypeDef *ds18b20x)
+{
+    return HAL_GPIO_ReadPin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin);
+}
+
+HAL_StatusTypeDef DS18B20_Reset(DS18B20_HandleTypeDef *ds18b20x)
+{
+    HAL_StatusTypeDef status;
+
+    /* Set pin as output */
+    DS18B20_SetPinOut(ds18b20x);
     /* Pull line low for 480us */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_RESET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_RESET);
     delayMicroSeconds(480);
 
     /* Pull line low for 70us */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_SET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_SET);
     delayMicroSeconds(70);
 
     /* Read the presence pulse */
     /* First, set pin as Input */
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
-
-    if (HAL_GPIO_ReadPin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin) == GPIO_PIN_SET)
+    DS18B20_SetPinIn(ds18b20x);
+    if (DS18B20_ReadPin(ds18b20x) == GPIO_PIN_RESET)
     {
         status = HAL_OK;
     }
@@ -62,28 +88,23 @@ HAL_StatusTypeDef DS18B20_Reset(DS18B20_HandleTypeDef *ds18b20x)
 static void DS18B20_WriteBit(DS18B20_HandleTypeDef *ds18b20x, uint8_t bit)
 {
     /* Set pin as output */
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = ds18b20x->GPIO_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
+    DS18B20_SetPinOut(ds18b20x);
 
     /* Pull line low for 1us */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_RESET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_RESET);
     delayMicroSeconds(1);
 
     /* If writing 1, release line */
     if (bit)
     {
-        HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_SET);
+        DS18B20_WritePin(ds18b20x, GPIO_PIN_SET);
     }
 
     /* Wait for rest of timeslot 60us -> 120us */
     delayMicroSeconds(80);
 
     /* Release line */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_SET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_SET);
     delayMicroSeconds(2);
 }
 
@@ -92,29 +113,23 @@ static uint8_t DS18B20_ReadBit(DS18B20_HandleTypeDef *ds18b20x)
     uint8_t bit_read = 0;
 
     /* Set pin as Output Open-Drain */
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = ds18b20x->GPIO_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
+    DS18B20_SetPinOut(ds18b20x);
 
     /* Pull line low for 2us */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_RESET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_RESET);
+
     delayMicroSeconds(2);
 
     /* Release line and switch to Input */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_SET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_SET);
 
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
+    DS18B20_SetPinIn(ds18b20x);
 
     /* Wait 10-15us then read */
     delayMicroSeconds(15);
 
     /* Read the line state */
-    if (HAL_GPIO_ReadPin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin))
+    if (DS18B20_ReadPin(ds18b20x) == GPIO_PIN_SET)
     {
         bit_read = 1;
     }
@@ -306,13 +321,8 @@ void DS18B20_Init(DS18B20_HandleTypeDef *ds18b20x, GPIO_TypeDef *GPIOx, uint16_t
     ds18b20x->LastTemperature = -999.0f;
 
     /* Configure GPIO as Open Drain Output */
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = ds18b20x->GPIO_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(ds18b20x->GPIOx, &GPIO_InitStruct);
+    DS18B20_SetPinOut(ds18b20x);
 
     /* Set pin high initially */
-    HAL_GPIO_WritePin(ds18b20x->GPIOx, ds18b20x->GPIO_Pin, GPIO_PIN_SET);
+    DS18B20_WritePin(ds18b20x, GPIO_PIN_SET);
 }

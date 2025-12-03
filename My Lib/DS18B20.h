@@ -57,6 +57,14 @@ typedef struct
 } DS18B20_HandleTypeDef;
 
 /**
+ * @brief  Attach a hardware timer for microsecond delays.
+ * @note   This timer will be used by the DS18B20 driver for precise timing.
+ * @param  htim: Pointer to a TIM_HandleTypeDef structure
+ * @retval None
+ */
+void DS18B20_SetTimerHandle(TIM_HandleTypeDef *htim);
+
+/**
  * @brief  Initialize DS18B20 sensor and prepare 1-Wire communication.
  * @param  ds18b20x: Pointer to DS18B20 handle structure
  * @param  GPIOx: GPIO Port used for data line

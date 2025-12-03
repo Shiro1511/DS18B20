@@ -98,6 +98,7 @@ int main(void)
   MX_TIM1_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  DS18B20_SetTimerHandle(&htim1);
   DS18B20_Init(&hds18b20_1, GPIOA, GPIO_PIN_0);
 
   LCD_Init(&hlcd, &hi2c1, LCD_ADDR);
